@@ -1,97 +1,168 @@
 import streamlit as st
 import random
+import re
 
 # --- 앱 구성 설정 ---
 st.set_page_config(
-    page_title="무드 플레이리스트",
-    page_icon="🎵",
-    layout="centered",
-    initial_sidebar_state="auto",
+    page_title="감성 플레이리스트",
+    page_icon="🎧",
+    layout="wide",
 )
 
-# --- 데이터 ---
-# 각 기분과 장르에 맞는 노래 목록 (예시 데이터)
-# 실제 애플리케이션에서는 더 많은 곡을 데이터베이스나 API를 통해 가져올 수 있습니다.
+# --- 데이터베이스 ---
+# 인간의 복합적인 감정을 고려하여 카테고리를 대폭 확장하고, 각 감정에 맞는 노래 목록을 구성합니다.
 music_database = {
-    "행복": {
-        "팝": [
-            {"artist": "방탄소년단", "song": "Dynamite"},
-            {"artist": "아이유", "song": "Celebrity"},
-            {"artist": "TWICE", "song": "Dance The Night Away"},
+    # 긍정적 & 높은 에너지
+    "환희": {
+        "EDM": [
+            {"artist": "Avicii", "song": "Levels"},
+            {"artist": "Coldplay", "song": "A Sky Full Of Stars"},
+            {"artist": "Alan Walker", "song": "Faded"},
         ],
-        "댄스": [
-            {"artist": "Mark Ronson", "song": "Uptown Funk (Feat. Bruno Mars)"},
-            {"artist": "Dua Lipa", "song": "Don't Start Now"},
-            {"artist": "Justin Timberlake", "song": "Can't Stop the Feeling!"},
-        ],
-        "인디": [
-            {"artist": "볼빨간사춘기", "song": "여행"},
-            {"artist": "10CM", "song": "사랑은 은하수 다방에서"},
-            {"artist": "치즈(CHEEZE)", "song": "Madeleine Love"},
+        "댄스 팝": [
+            {"artist": "방탄소년단", "song": "Permission to Dance"},
+            {"artist": "Lady Gaga", "song": "Just Dance"},
+            {"artist": "Pharrell Williams", "song": "Happy"},
         ],
     },
-    "슬픔": {
+    "열정": {
+        "록": [
+            {"artist": "Queen", "song": "We Will Rock You"},
+            {"artist": "Imagine Dragons", "song": "Believer"},
+            {"artist": "국카스텐", "song": "Lazenca, Save Us"},
+        ],
+        "힙합": [
+            {"artist": "Eminem", "song": "Lose Yourself"},
+            {"artist": "Jessi", "song": "눈누난나 (NUNU NANA)"},
+            {"artist": "Drake", "song": "God's Plan"},
+        ],
+    },
+    # 긍정적 & 낮은 에너지
+    "평온": {
+        "재즈": [
+            {"artist": "Bill Evans", "song": "Waltz for Debby"},
+            {"artist": "Norah Jones", "song": "Don't Know Why"},
+            {"artist": "Chet Baker", "song": "My Funny Valentine"},
+        ],
+        "어쿠스틱": [
+            {"artist": "제이슨 므라즈", "song": "I'm Yours"},
+            {"artist": "아이유", "song": "밤편지"},
+            {"artist": "Ed Sheeran", "song": "Perfect"},
+        ],
+        "클래식": [
+            {"artist": "드뷔시", "song": "달빛 (Clair de Lune)"},
+            {"artist": "사티", "song": "짐노페디 1번"},
+            {"artist": "바흐", "song": "무반주 첼로 모음곡 1번"},
+        ],
+    },
+    "설렘": {
+        "인디 팝": [
+            {"artist": "볼빨간사춘기", "song": "썸 탈꺼야"},
+            {"artist": "CHEEZE", "song": "Madeleine Love"},
+            {"artist": "숀(SHAUN)", "song": "Way Back Home"},
+        ],
+        "R&B": [
+            {"artist": "Ariana Grande", "song": "Daydreamin'"},
+            {"artist": "Crush", "song": "잊어버리지마"},
+            {"artist": "폴킴", "song": "모든 날, 모든 순간"},
+        ],
+    },
+    # 부정적 & 낮은 에너지
+    "우울": {
         "발라드": [
             {"artist": "박효신", "song": "야생화"},
             {"artist": "Adele", "song": "Someone Like You"},
-            {"artist": "이선희", "song": "인연"},
+            {"artist": "임창정", "song": "소주 한 잔"},
         ],
-        "R&B": [
-            {"artist": "딘(DEAN)", "song": "D (half moon)"},
-            {"artist": "백예린", "song": "우주를 건너"},
-            {"artist": "Frank Ocean", "song": "Thinking Bout You"},
+        "포크": [
+            {"artist": "김광석", "song": "서른 즈음에"},
+            {"artist": "Bob Dylan", "song": "Blowin' in the Wind"},
+            {"artist": "Damien Rice", "song": "The Blower's Daughter"},
+        ],
+    },
+    "쓸쓸함": {
+        "모던 록": [
+            {"artist": "Radiohead", "song": "Creep"},
+            {"artist": "넬", "song": "기억을 걷는 시간"},
+            {"artist": "Coldplay", "song": "The Scientist"},
         ],
         "OST": [
-            {"artist": "거미", "song": "You Are My Everything"},
             {"artist": "Lasse Lindh", "song": "C'mon Through"},
             {"artist": "김필", "song": "그때 그 아인"},
+            {"artist": "Hoppipolla", "song": "About Time"},
         ],
     },
-    "에너지 넘치는": {
-        "록": [
-            {"artist": "Queen", "song": "Don't Stop Me Now"},
-            {"artist": "윤도현밴드", "song": "나는 나비"},
-            {"artist": "Bon Jovi", "song": "It's My Life"},
+    # 부정적 & 높은 에너지
+    "분노": {
+        "메탈": [
+            {"artist": "Metallica", "song": "Enter Sandman"},
+            {"artist": "Rage Against The Machine", "song": "Killing In The Name"},
+            {"artist": "System Of A Down", "song": "B.Y.O.B."},
         ],
-        "힙합": [
-            {"artist": "지코 (ZICO)", "song": "아무노래"},
-            {"artist": "Eminem", "song": "Lose Yourself"},
-            {"artist": "다이나믹 듀오", "song": "출첵"},
-        ],
-        "EDM": [
-            {"artist": "The Chainsmokers", "song": "Closer"},
-            {"artist": "Avicii", "song": "Wake Me Up"},
-            {"artist": "Calvin Harris", "song": "Summer"},
+        "하드코어 힙합": [
+            {"artist": "DMX", "song": "X Gon' Give It To Ya"},
+            {"artist": "켄드릭 라마", "song": "DNA."},
+            {"artist": "에픽하이", "song": "Born Hater"},
         ],
     },
-    "차분한": {
-        "재즈": [
-            {"artist": "Norah Jones", "song": "Don't Know Why"},
-            {"artist": "Chet Baker", "song": "My Funny Valentine"},
-            {"artist": "Billie Holiday", "song": "Summertime"},
+    # 복합적 감정
+    "그리움": {
+        "포크 록": [
+            {"artist": "산울림", "song": "회상"},
+            {"artist": "이문세", "song": "옛사랑"},
+            {"artist": "Fleetwood Mac", "song": "Landslide"},
         ],
-        "어쿠스틱": [
-            {"artist": "Jason Mraz", "song": "I'm Yours"},
-            {"artist": "Ed Sheeran", "song": "Thinking Out Loud"},
-            {"artist": "Jeff Buckley", "song": "Hallelujah"},
-        ],
-        "클래식": [
-            {"artist": "클로드 드뷔시", "song": "달빛 (Clair de Lune)"},
-            {"artist": "요한 파헬벨", "song": "캐논 변주곡"},
-            {"artist": "프레데리크 쇼팽", "song": "녹턴 2번"},
+        "시티 팝": [
+            {"artist": "유키카", "song": "서울여자"},
+            {"artist": "Mariya Takeuchi", "song": "Plastic Love"},
+            {"artist": "김현철", "song": "오랜만에"},
         ],
     },
 }
 
-# --- 앱 UI ---
+# --- 감정 분석 로직 ---
+# 주관식 입력을 위한 감정 키워드 딕셔너리
+# 외부 NLP 라이브러리 없이, 핵심 키워드 매칭 방식으로 감정을 추론합니다.
+emotion_keywords = {
+    "환희": ["최고야", "미쳤다", "환상적", "짜릿해", "날아갈", "끝내주는"],
+    "열정": ["할 수 있어", "뜨거워", "불타오르네", "도전", "열정", "가자"],
+    "평온": ["차분", "평화", "나른", "잔잔", "고요", "휴식", "릴랙스"],
+    "설렘": ["설레", "두근", "심장이", "기대돼", "썸", "첫사랑"],
+    "우울": ["우울", "슬퍼", "눈물", "힘들", "지쳤어", "혼자"],
+    "쓸쓸함": ["외로워", "쓸쓸", "공허", "혼자", "텅 빈", "보고싶다"],
+    "분노": ["화나", "열받네", "짜증", "분노", "다 부숴", "용서 못해"],
+    "그리움": ["그리워", "옛날", "추억", "생각나", "돌아가고파", "그때"],
+}
 
-st.title("🎵 무드 플레이리스트")
-st.write("오늘 당신의 기분은 어떤가요? 기분에 맞는 노래를 추천해 드립니다.")
+def analyze_text_mood(text):
+    """
+    입력된 텍스트에서 감정 키워드를 분석하여 가장 적합한 감정을 반환합니다.
+    """
+    scores = {mood: 0 for mood in emotion_keywords}
+    
+    # 텍스트에서 특수문자를 제거하고 소문자로 변환하여 분석 정확도를 높입니다.
+    cleaned_text = re.sub(r'[^\w\s]', '', text).lower()
+
+    for mood, keywords in emotion_keywords.items():
+        for keyword in keywords:
+            if keyword in cleaned_text:
+                scores[mood] += 1
+    
+    # 가장 높은 점수를 받은 감정을 반환합니다. 동점일 경우 첫 번째 감정을 반환합니다.
+    if any(score > 0 for score in scores.values()):
+        detected_mood = max(scores, key=scores.get)
+        return detected_mood
+    
+    return None
+
+# --- 앱 UI ---
+st.title("🎧 감성 플레이리스트")
+st.write("당신의 지금 감정을 들려주세요. 꼭 맞는 노래를 추천해 드릴게요.")
 
 # --- 입력 방식 선택 ---
 input_method = st.radio(
-    "어떻게 기분을 알려주시겠어요?",
-    ("객관식으로 선택하기", "주관식으로 입력하기"),
+    "어떻게 감정을 알려주시겠어요?",
+    ("감정 목록에서 선택하기", "자유롭게 문장으로 표현하기"),
     horizontal=True,
     label_visibility="collapsed"
 )
@@ -99,55 +170,63 @@ input_method = st.radio(
 user_mood = ""
 mood_detected = False
 
+st.divider()
+
 # 객관식 입력
-if input_method == "객관식으로 선택하기":
+if input_method == "감정 목록에서 선택하기":
+    st.subheader("지금 당신의 감정과 가장 가까운 것을 골라보세요.")
     mood_options = list(music_database.keys())
-    selected_mood = st.selectbox("오늘의 기분을 선택해주세요.", mood_options, index=None, placeholder="기분을 선택하세요...")
-    if selected_mood:
-        user_mood = selected_mood
-        mood_detected = True
+    
+    # 감정을 4개씩 묶어 버튼으로 표시
+    cols = st.columns(4)
+    for i, mood in enumerate(mood_options):
+        if cols[i % 4].button(mood, use_container_width=True):
+            user_mood = mood
+            mood_detected = True
 
 # 주관식 입력
 else:
-    text_input = st.text_input("오늘의 기분이나 상태를 자유롭게 입력해보세요. (예: 행복, 우울, 신나는 등)")
-    if text_input:
-        # 간단한 키워드 매칭
-        for mood in music_database.keys():
-            if mood in text_input:
-                user_mood = mood
+    st.subheader("오늘 하루, 어떤 감정들을 느끼셨나요?")
+    text_input = st.text_area(
+        "자유롭게 당신의 이야기를 들려주세요. 길게 쓸수록 더 정확해져요.",
+        placeholder="예: 오늘따라 옛날 생각이 나면서 그 사람이 그립네..."
+    )
+
+    if st.button("내 감정에 맞는 노래 찾기", type="primary"):
+        if text_input:
+            detected_mood = analyze_text_mood(text_input)
+            if detected_mood:
+                user_mood = detected_mood
                 mood_detected = True
-                break
-        if not mood_detected:
-            st.warning("입력하신 기분에 맞는 추천 목록이 아직 준비되지 않았어요. 다른 키워드를 시도해보세요. (예: 행복, 슬픔, 에너지 넘치는, 차분한)")
+                st.info(f"입력하신 문장에서 '{user_mood}'의 감정이 느껴지네요!")
+            else:
+                st.warning("감정을 파악하기 어려워요. 좀 더 자세하게 설명해주시겠어요?")
+        else:
+            st.error("먼저 오늘의 감정을 입력해주세요!")
+
 
 # --- 노래 추천 로직 ---
 if mood_detected:
-    st.header(f"'{user_mood}' 기분을 위한 노래 추천", divider="rainbow")
+    st.header(f"'{user_mood}'을(를) 위한 오늘의 추천 플레이리스트", divider="rainbow")
 
-    # 해당 기분에 맞는 장르 목록 가져오기
     genres = list(music_database[user_mood].keys())
-
-    # 탭을 사용하여 장르별 추천 표시
-    tabs = st.tabs(genres)
-
-    for i, genre in enumerate(genres):
-        with tabs[i]:
-            st.subheader(f"🎧 {genre} 장르")
+    
+    # 추천곡을 보기 좋게 카드 형태로 표시
+    for genre in genres:
+        with st.container(border=True):
+            st.subheader(f"🎵 {genre}")
             
-            # 해당 장르의 노래 목록 가져오기
             songs_in_genre = music_database[user_mood][genre]
-            
-            # 랜덤으로 3곡 이상 추천 (데이터가 3곡 미만일 경우 있는 만큼만)
-            num_to_recommend = min(len(songs_in_genre), 3)
+            num_to_recommend = min(len(songs_in_genre), 3) # 최대 3곡 추천
             recommended_songs = random.sample(songs_in_genre, num_to_recommend)
             
-            # 추천 곡 목록 출력
-            for j, song in enumerate(recommended_songs):
-                col1, col2 = st.columns([1, 4])
+            for song in recommended_songs:
+                col1, col2 = st.columns([5, 1])
                 with col1:
-                    # 이모티콘으로 순위 느낌 표현
-                    st.markdown(f"### {j+1}위")
+                    st.markdown(f"**{song['song']}** - _{song['artist']}_")
                 with col2:
-                    st.markdown(f"**{song['song']}** - {song['artist']}")
-                    # 검색 링크 제공 (유튜브 검색)
-                    st.link_button("노래 듣기 (YouTube)", f"https://www.youtube.com/results?search_query={song['artist']}+{song['song']}")
+                    # 검색어를 더 정확하게 만들어 유튜브 링크 제공
+                    query = f"{song['artist']} {song['song']}"
+                    st.link_button("들어보기", f"https://www.youtube.com/results?search_query={query}", use_container_width=True)
+            
+            st.markdown("---")

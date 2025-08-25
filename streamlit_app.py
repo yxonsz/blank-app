@@ -5,12 +5,11 @@ import re
 # --- 앱 구성 설정 ---
 st.set_page_config(
     page_title="나를 위한 음악",
-    page_icon="🎧",
-    layout="centered",
+    page_icon="🎶🎧",
+    layout="wide", # 넓은 레이아웃으로 변경하여 더 많은 정보를 표시
 )
 
-# --- v5: 전문가 수준으로 확장된 음악 데이터베이스 ---
-# 각 상황/분위기 카테고리 내 장르를 대폭 확장하고, 서브장르 및 트렌디한 장르를 추가했습니다.
+# --- v5 데이터베이스 (이전과 동일) ---
 music_database_v5 = {
     "지친 하루의 끝, 위로가 필요할 때": {
         "어쿠스틱 팝": [{"artist": "이하이", "song": "한숨"}, {"artist": "Coldplay", "song": "Fix You"}, {"artist": "악뮤(AKMU)", "song": "오랜 날 오랜 밤"}, {"artist": "Justin Bieber", "song": "Love Yourself"}],
@@ -56,9 +55,7 @@ music_database_v5 = {
         "자연의 소리 (ASMR)": [{"artist": "Various Artists", "song": "잔잔한 빗소리 (Gentle Rain)"}, {"artist": "Various Artists", "song": "타닥거리는 장작불 소리 (Crackling Fireplace)"}, {"artist": "Various Artists", "song": "숲 속의 아침 (Forest Morning)"}],
     },
 }
-
-
-# --- v4: 새로운 데이터베이스에 맞춰 업데이트된 감정 분석 엔진 ---
+# 감정 분석 엔진 (이전과 동일)
 emotion_lexicon_v4 = {
     "지친 하루의 끝, 위로가 필요할 때": {"위로": 2.5, "힘들": 2, "지쳤": 2, "눈물": 1.5, "혼자": 1.5, "슬퍼": 1, "괜찮아": 1},
     "세상의 중심이 된 듯, 자신감이 폭발할 때": {"자신감": 2.5, "성공": 2, "해냈어": 2, "최고": 1.5, "할수있어": 1.5, "뿌듯": 1, "극복": 1},
@@ -68,86 +65,97 @@ emotion_lexicon_v4 = {
     "신나는 파티! 리듬에 몸을 맡길 때": {"파티": 2.5, "신나": 2, "댄스": 1.8, "축제": 1.5, "리듬": 1.2, "흔들어": 1},
     "일에 집중해야 할 때": {"집중": 2.5, "공부": 2, "작업": 2, "코딩": 1.5, "독서": 1.2, "몰입": 1},
 }
-
 def analyze_text_mood_v4(text):
     scores = {mood: 0 for mood in emotion_lexicon_v4}
     cleaned_text = re.sub(r'[^\w\s]', '', text).lower()
     for mood, keywords in emotion_lexicon_v4.items():
         for keyword, weight in keywords.items():
-            if keyword in cleaned_text:
-                scores[mood] += weight
+            if keyword in cleaned_text: scores[mood] += weight
     positive_scores = {mood: score for mood, score in scores.items() if score > 0}
     return max(positive_scores, key=positive_scores.get) if positive_scores else None
 
-# --- 앱 UI ---
-st.title("🎶 궁극의 뮤직 큐레이터")
+# --- UI 및 로직 함수 ---
+def display_song(song):
+    """개별 곡을 서식에 맞게 표시하는 함수"""
+    query = f"{song['artist']} {song['song']}".replace(" ", "+")
+    st.markdown(
+        f"""
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #333;">
+            <div>
+                <span style="font-weight: bold; font-size: 1.1em;">{song['song']}</span>
+                <br>
+                <span style="color: #A0A0A0;">{song['artist']}</span>
+            </div>
+            <a href="https://www.youtube.com/results?search_query={query}" target="_blank" 
+               style="text-decoration: none; color: white; background-color: #FF4B4B; padding: 8px 12px; border-radius: 20px; font-weight: bold; font-size: 0.9em;">
+                듣기
+            </a>
+        </div>
+        """, unsafe_allow_html=True
+    )
+
+def recommend_and_display(genre_name, songs, is_expanded):
+    """특정 장르의 곡들을 추천하고 화면에 표시하는 함수"""
+    with st.expander(f"🎵 **{genre_name}**", expanded=is_expanded):
+        num_to_recommend = min(len(songs), 3) # 최대 3곡 추천
+        recommended_songs = random.sample(songs, num_to_recommend)
+        for song in recommended_songs:
+            display_song(song)
+
+# --- 앱 UI 시작 ---
+st.title("🎶 궁극의 뮤직 익스플로러")
 st.markdown("당신의 **모든 순간**과 **모든 감정**을 위한, 가장 풍성한 플레이리스트를 만나보세요.")
 
-tab1, tab2 = st.tabs(["**✍️ 텍스트로 내 기분 설명하기**", "**🖼️ 특정 상황/분위기 선택하기**"])
+# 세션 상태 초기화
+if 'mood' not in st.session_state:
+    st.session_state.mood = None
 
-final_mood = None
+# 입력 UI
+cols = st.columns([0.7, 0.3])
+with cols[0]:
+    text_input = st.text_input("지금 기분이나 상황을 알려주세요", placeholder="예: 오늘은 코딩에 집중해야 하는 날! 비트있는 음악으로 몰입하고 싶어.")
+    if text_input:
+        analyzed_mood = analyze_text_mood_v4(text_input)
+        if analyzed_mood:
+            st.session_state.mood = analyzed_mood
 
-with tab1:
-    st.subheader("당신의 이야기를 들려주세요")
-    text_input = st.text_area(
-        "어떤 하루를 보내셨나요? 지금 어떤 감정을 느끼고 있나요?",
-        placeholder="예: 오늘은 코딩에 집중해야 하는 날! 비트있는 음악으로 몰입하고 싶어.",
-        height=150
-    )
-    if st.button("내 이야기에 맞는 음악 찾기", use_container_width=True, type="primary"):
-        if text_input:
-            mood = analyze_text_mood_v4(text_input)
-            if mood:
-                st.success(f"분석 결과: **'{mood}'** 와 가장 어울리는 분위기네요.")
-                final_mood = mood
-            else:
-                st.warning("감정을 파악하기 어려워요. 조금 더 구체적인 단어를 사용해 다시 시도해보세요.")
-        else:
-            st.error("먼저 당신의 이야기를 들려주세요!")
-
-with tab2:
-    st.subheader("지금 어떤 순간에 계신가요?")
-    mood_options = ["어떤 순간에 어울리는 음악을 찾으세요?"] + list(music_database_v5.keys())
-    selected_mood = st.selectbox(
-        "상황/분위기를 선택하세요",
-        options=mood_options,
-        index=0,
-        label_visibility="collapsed"
-    )
+with cols[1]:
+    mood_options = ["직접 상황 선택하기"] + list(music_database_v5.keys())
+    selected_mood = st.selectbox("직접 상황 선택하기", options=mood_options, label_visibility="collapsed")
     if selected_mood != mood_options[0]:
-        final_mood = selected_mood
+        st.session_state.mood = selected_mood
 
-# --- 음악 추천 섹션 ---
+# --- 음악 추천 로직 실행 ---
+final_mood = st.session_state.mood
+
 if final_mood:
-    st.divider()
-    st.header(f"🎧 '{final_mood}'을(를) 위한 추천 플레이리스트")
+    # 1. 맞춤 추천 섹션
+    st.header(f"'{final_mood}' 맞춤 추천", divider="rainbow")
+    st.write(f"당신의 **'{final_mood}'** 순간을 위해 엄선한 장르입니다. **새로운 음악을 원하시면 아래 버튼을 누르세요.**")
+    
+    tailored_genres = music_database_v5[final_mood]
+    for genre, songs in tailored_genres.items():
+        recommend_and_display(genre, songs, is_expanded=True)
+    
+    # 2. 다른 장르 둘러보기 섹션
+    st.header("다른 장르 둘러보기", divider="gray")
+    st.write("새로운 분위기의 음악을 발견해보세요.")
 
-    genres = list(music_database_v5[final_mood].keys())
+    other_moods = [mood for mood in music_database_v5 if mood != final_mood]
     
-    for genre in genres:
-        with st.expander(f"🎵 **{genre}** 장르의 추천곡", expanded=True):
-            songs_in_genre = music_database_v5[final_mood][genre]
-            
-            num_to_recommend = min(len(songs_in_genre), 3) # 최대 3곡 추천
-            recommended_songs = random.sample(songs_in_genre, num_to_recommend)
-            
-            for song in recommended_songs:
-                query = f"{song['artist']} {song['song']}".replace(" ", "+")
-                st.markdown(
-                    f"""
-                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #333;">
-                        <div>
-                            <span style="font-weight: bold; font-size: 1.1em;">{song['song']}</span>
-                            <br>
-                            <span style="color: #A0A0A0;">{song['artist']}</span>
-                        </div>
-                        <a href="https://www.youtube.com/results?search_query={query}" target="_blank" 
-                           style="text-decoration: none; color: white; background-color: #FF4B4B; padding: 8px 12px; border-radius: 20px; font-weight: bold; font-size: 0.9em;">
-                            듣기
-                        </a>
-                    </div>
-                    """, unsafe_allow_html=True
-                )
+    for mood_category in other_moods:
+        with st.container(border=True):
+            st.subheader(f"'{mood_category}'의 분위기")
+            genres_in_mood = music_database_v5[mood_category]
+            for genre, songs in genres_in_mood.items():
+                recommend_and_display(genre, songs, is_expanded=False)
     
-    if st.button('🔄 다른 곡 추천받기', use_container_width=True, key="rerun_button"):
+    st.divider()
+    # 3. 다른 곡 추천받기 버튼
+    # 이 버튼을 누르면 st.rerun()이 호출되어 스크립트 전체가 재실행됩니다.
+    # 재실행 시 random.sample()이 다시 호출되므로 자연스럽게 다른 곡이 추천됩니다.
+    if st.button('🔄 새로운 음악 탐색하기 (모든 추천곡 갱신)', use_container_width=True, type="primary"):
         st.rerun()
+
+else:
+    st.info("텍스트를 입력하거나 메뉴에서 상황을 선택하여 음악 추천을 시작하세요.")
